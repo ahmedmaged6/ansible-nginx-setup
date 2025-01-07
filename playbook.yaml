@@ -1,0 +1,59 @@
+- name: Install Nginx on a Linux Machine with restricted access
+  hosts: node1
+  gather_facts: true
+  vars:
+    server_name: "mynginx.local"
+    allowed_ips:
+      - "{{ ansible_default_ipv4.address }}"
+      - "192.168.1.50"
+      - "192.168.1.60"
+      - "192.168.1.70"
+
+  tasks:
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: latest
+        update_cache: yes
+      become: true
+
+    - name: Configure Nginx configuration file using jinja2
+      ansible.builtin.template:
+        src: default.j2
+        dest: /etc/nginx/sites-available/default
+      notify:
+        - Restart nginx
+      become: true
+
+    - name: Validate Nginx configuration
+      command: nginx -t
+      register: nginx_test
+      changed_when: false
+      failed_when: nginx_test.rc != 0
+      become: true
+
+    - name: Start and Enable Nginx Service
+      ansible.builtin.systemd:
+        name: nginx
+        state: started
+        enabled: true
+      become: true
+
+    - name: Create Welcome Page
+      copy:
+        dest: /var/www/html/index.html
+        content: |
+          <html>
+          <head><title>Welcome to Nginx</title></head>
+          <body>
+            <h1>Welcome to nginx!</h1>
+          </body>
+          </html>
+      become: true
+
+  handlers:
+    - name: Restart nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
+
